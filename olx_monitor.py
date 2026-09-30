@@ -7,6 +7,24 @@ from pathlib import Path
 from playwright.sync_api import Page
 
 
+def _db_table(path: Path) -> str:
+    return "olx_claimed" if path.name.startswith("claimed") else "olx_seen"
+
+
+def _db_enabled() -> bool:
+    return bool(os.getenv("DATABASE_URL"))
+
+
+def _ensure_db() -> None:
+    if not _db_enabled():
+        return
+    import psycopg
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS olx_seen (url TEXT PRIMARY KEY)")
+        conn.execute("CREATE TABLE IF NOT EXISTS olx_claimed (url TEXT PRIMARY KEY)")
+        conn.commit()
+
+
 def _number(value: str) -> float | None:
     cleaned = re.sub(r"[^0-9.,]", "", value).replace(" ", "")
     if not cleaned:
@@ -23,12 +41,27 @@ def _number(value: str) -> float | None:
 
 
 def load_seen(path: Path) -> set[str]:
+    if _db_enabled():
+        import psycopg
+        _ensure_db()
+        table = _db_table(path)
+        with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+            return {row[0] for row in conn.execute(f"SELECT url FROM {table}")}
     if not path.exists():
         return set()
     return set(json.loads(path.read_text(encoding="utf-8")))
 
 
 def save_seen(path: Path, seen: set[str]) -> None:
+    if _db_enabled():
+        import psycopg
+        _ensure_db()
+        table = _db_table(path)
+        with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+            with conn.cursor() as cur:
+                cur.executemany(f"INSERT INTO {table} (url) VALUES (%s) ON CONFLICT DO NOTHING", [(url,) for url in seen])
+            conn.commit()
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(sorted(seen), ensure_ascii=False, indent=2), encoding="utf-8")
 

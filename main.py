@@ -10,6 +10,11 @@ from playwright.sync_api import sync_playwright
 from olx_monitor import collect_ads, format_ad, load_seen, matches_price, save_seen
 from telegram_sender import send_to_channel
 
+try:
+    import redis
+except ImportError:
+    redis = None
+
 
 load_dotenv()
 data_dir = Path(os.getenv("DATA_DIR", "data"))
@@ -89,13 +94,18 @@ with sync_playwright() as p:
     page = browser.pages[0] if browser.pages else browser.new_page()
     checkpoint = load_checkpoint()
     print(f"Monitoring new ads after {checkpoint.isoformat()}, timezone={page.evaluate('Intl.DateTimeFormat().resolvedOptions().timeZone')}", flush=True)
+    redis_client = redis.from_url(os.environ["REDIS_URL"]) if redis and os.getenv("REDIS_URL") else None
     while True:
         started = time.monotonic()
         try:
             # Checkpoint is a startup baseline, not a moving per-cycle watermark.
             # Moving it every cycle made OLX's delayed/stale page results look old
             # and caused valid listings to be skipped as SKIP_OLD.
-            run_once(page, checkpoint)
+            if redis_client:
+                with redis_client.lock("olxbot:check-lock", timeout=120, blocking_timeout=1):
+                    run_once(page, checkpoint)
+            else:
+                run_once(page, checkpoint)
         except Exception as exc:
             print(f"Check failed: {type(exc).__name__}", flush=True)
         elapsed = time.monotonic() - started
