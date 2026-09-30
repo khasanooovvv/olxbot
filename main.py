@@ -14,13 +14,16 @@ from telegram_sender import send_to_channel
 load_dotenv()
 data_dir = Path(os.getenv("DATA_DIR", "data"))
 seen_path = data_dir / "seen_ads.json"
+claimed_path = data_dir / "claimed_ads.json"
 monitor_since = datetime.fromisoformat(os.getenv("MONITOR_SINCE", "2026-09-30T18:08:00+05:00"))
 local_tz = timezone(timedelta(hours=5))
 session_dir = data_dir / "session"
+max_ad_age_seconds = int(os.getenv("MAX_AD_AGE_SECONDS", "180"))
 
 
 def run_once(page) -> None:
     seen = load_seen(seen_path)
+    claimed = load_seen(claimed_path)
     base = urlsplit(os.environ["OLX_SEARCH_URL"])
     query = dict(parse_qsl(base.query))
     query["search[order]"] = "created_at:desc"
@@ -38,7 +41,7 @@ def run_once(page) -> None:
             print(f"PAGE_FAILED page={urls.index(url)+1} error={type(exc).__name__}", flush=True)
             continue
         for ad in ads:
-            if ad["url"] in seen or not matches_price(ad["text"]):
+            if ad["url"] in seen or ad["url"] in claimed or not matches_price(ad["text"]):
                 continue
             match = re.search(r"Сегодня\s+в\s+(\d{1,2}):(\d{2})", ad["text"], re.IGNORECASE)
             if not match:
@@ -46,6 +49,12 @@ def run_once(page) -> None:
             posted = datetime.now(local_tz).replace(hour=int(match[1]), minute=int(match[2]), second=0, microsecond=0)
             if posted < monitor_since:
                 continue
+            age = (datetime.now(local_tz) - posted).total_seconds()
+            if age < 0 or age > max_ad_age_seconds:
+                print(f"SKIP_OLD age={age:.0f}s posted={posted.isoformat()} url={ad['url']}", flush=True)
+                continue
+            claimed.add(ad["url"])
+            save_seen(claimed_path, claimed)
             print(f"FOUND at={datetime.now(local_tz).isoformat()} posted={posted.isoformat()} url={ad['url']}", flush=True)
             try:
                 send_to_channel(format_ad(ad))
