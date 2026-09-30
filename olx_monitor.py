@@ -35,16 +35,14 @@ def save_seen(path: Path, seen: set[str]) -> None:
 
 def collect_ads(page: Page, search_url: str | None = None) -> list[dict]:
     started = time.perf_counter()
-    try:
-        page.goto(search_url or os.environ["OLX_SEARCH_URL"], wait_until="commit", timeout=0)
-    except Exception:
-        # Continue with whatever HTML has loaded instead of blocking the cycle.
-        pass
+    response = page.goto(search_url or os.environ["OLX_SEARCH_URL"], wait_until="domcontentloaded", timeout=15000)
+    if response is None or response.status >= 400:
+        raise RuntimeError("OLX page unavailable")
     page.wait_for_timeout(1200)
     cards = page.locator("a[href*='/d/obyavlenie/']")
     ads = []
     seen_urls = set()
-    for i in range(min(cards.count(), 100)):
+    for i in range(cards.count()):
         card = cards.nth(i)
         link = card.get_attribute("href")
         if not link:
