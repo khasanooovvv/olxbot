@@ -42,7 +42,9 @@ def run_once(page, window_start: datetime) -> bool:
     query = dict(parse_qsl(base.query))
     query["search[order]"] = "created_at:desc"
     urls = []
-    for number in range(1, 4):
+    page_start = max(1, int(os.getenv("OLX_PAGE_START", "1")))
+    page_end = max(page_start, int(os.getenv("OLX_PAGE_END", str(page_start))))
+    for number in range(page_start, page_end + 1):
         query["page"] = str(number)
         urls.append(urlunsplit(base._replace(query=urlencode(query))))
 
