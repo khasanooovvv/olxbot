@@ -1,0 +1,16 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+
+# Playwright browser session and local state
+data/session/
+data/seen_ads.json
+
+# Generated/local output
+outputs/
+*.log
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+Thumbs.db
