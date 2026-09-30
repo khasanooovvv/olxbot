@@ -90,9 +90,10 @@ with sync_playwright() as p:
     while True:
         started = time.monotonic()
         try:
-            if run_once(page, checkpoint):
-                checkpoint = datetime.now(local_tz)
-                save_checkpoint(checkpoint)
+            # Checkpoint is a startup baseline, not a moving per-cycle watermark.
+            # Moving it every cycle made OLX's delayed/stale page results look old
+            # and caused valid listings to be skipped as SKIP_OLD.
+            run_once(page, checkpoint)
         except Exception as exc:
             print(f"Check failed: {type(exc).__name__}", flush=True)
         elapsed = time.monotonic() - started
