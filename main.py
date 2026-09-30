@@ -11,6 +11,7 @@ from telegram_sender import send_to_channel
 load_dotenv()
 data_dir = Path(os.getenv("DATA_DIR", "data"))
 seen_path = data_dir / "seen_ads.json"
+baseline_path = data_dir / "baseline_initialized"
 session_dir = data_dir / "session"
 
 
@@ -20,6 +21,21 @@ def run_once(page) -> None:
     euro_url = os.getenv("OLX_SEARCH_URL_EUR", "")
     if euro_url and euro_url not in urls:
         urls.append(euro_url)
+
+    # On the first run, remember existing listings without sending them.
+    # This makes monitoring start from the current moment, not from old ads.
+    if not baseline_path.exists():
+        current_ads = []
+        for url in urls:
+            if url:
+                current_ads.extend(collect_ads(page, url))
+        seen.update(ad["url"] for ad in current_ads)
+        save_seen(seen_path, seen)
+        baseline_path.parent.mkdir(parents=True, exist_ok=True)
+        baseline_path.write_text("initialized", encoding="utf-8")
+        print(f"Boshlang'ich baza yaratildi: {len(current_ads)} ta eski e'lon yuborilmadi.", flush=True)
+        return
+
     for url in urls:
         if not url:
             continue
