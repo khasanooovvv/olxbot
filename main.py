@@ -11,7 +11,8 @@ from telegram_sender import send_to_channel
 load_dotenv()
 data_dir = Path(os.getenv("DATA_DIR", "data"))
 seen_path = data_dir / "seen_ads.json"
-baseline_path = data_dir / "baseline_initialized"
+# New monitoring baseline: listings visible at this deployment are skipped.
+baseline_path = data_dir / "baseline_initialized_1808"
 session_dir = data_dir / "session"
 
 
