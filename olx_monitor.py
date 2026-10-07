@@ -82,9 +82,14 @@ def collect_ads(page: Page, search_url: str | None = None) -> list[dict]:
             last_error = exc
         if attempt < 3:
             page.wait_for_timeout(attempt * 1500)
-    if response is None or response.status >= 400:
-        raise RuntimeError(f"OLX page unavailable: {last_error}")
+    # OLX can return 405 from its edge layer while still rendering the
+    # listing HTML in the browser. Prefer the rendered cards when available.
     page.wait_for_timeout(1200)
+    if response is None or response.status >= 400:
+        rendered_cards = page.locator("a[href*='/d/obyavlenie/']").count()
+        if rendered_cards == 0:
+            raise RuntimeError(f"OLX page unavailable: {last_error}")
+        print(f"OLX HTTP {response.status if response else 'no-response'}, rendered cards={rendered_cards}; continuing", flush=True)
     cards = page.locator("a[href*='/d/obyavlenie/']")
     ads = []
     seen_urls = set()
