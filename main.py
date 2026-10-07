@@ -60,7 +60,7 @@ def run_once(page, window_start: datetime) -> bool:
             ads = collect_ads(page, url)
         except Exception as exc:
             all_pages_ok = False
-            print(f"PAGE_FAILED page={urls.index(url)+1} error={type(exc).__name__}", flush=True)
+            print(f"PAGE_FAILED page={urls.index(url)+1} error={type(exc).__name__}: {exc}", flush=True)
             continue
         for ad in ads:
             if ad["url"] in seen or ad["url"] in claimed or not matches_price(ad["text"]):

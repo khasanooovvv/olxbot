@@ -68,9 +68,22 @@ def save_seen(path: Path, seen: set[str]) -> None:
 
 def collect_ads(page: Page, search_url: str | None = None) -> list[dict]:
     started = time.perf_counter()
-    response = page.goto(search_url or os.environ["OLX_SEARCH_URL"], wait_until="domcontentloaded", timeout=15000)
+    target = search_url or os.environ["OLX_SEARCH_URL"]
+    response = None
+    last_error = None
+    for attempt in range(1, 4):
+        try:
+            response = page.goto(target, wait_until="domcontentloaded", timeout=30000)
+            if response is not None and response.status < 400:
+                break
+            status = response.status if response is not None else "no-response"
+            last_error = RuntimeError(f"OLX HTTP {status}")
+        except Exception as exc:
+            last_error = exc
+        if attempt < 3:
+            page.wait_for_timeout(attempt * 1500)
     if response is None or response.status >= 400:
-        raise RuntimeError("OLX page unavailable")
+        raise RuntimeError(f"OLX page unavailable: {last_error}")
     page.wait_for_timeout(1200)
     cards = page.locator("a[href*='/d/obyavlenie/']")
     ads = []
